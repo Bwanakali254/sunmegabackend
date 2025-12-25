@@ -25,7 +25,7 @@ const newsletterSchema = new mongoose.Schema({
 })
 
 // Indexes
-newsletterSchema.index({ email: 1 })
+// Note: email index is automatically created by unique: true
 newsletterSchema.index({ subscribed: 1 })
 
 module.exports = mongoose.model('Newsletter', newsletterSchema)

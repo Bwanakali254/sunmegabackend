@@ -1,6 +1,8 @@
 const Order = require('../models/Order')
 const Cart = require('../models/Cart')
 const Product = require('../models/Product')
+const User = require('../models/User')
+const { sendOrderConfirmationEmail } = require('../utils/emailService')
 const logger = require('../utils/logger')
 
 /**
@@ -98,7 +100,19 @@ const createOrder = async (req, res, next) => {
 
     // Clear cart
     cart.items = []
+    cart.total = 0
     await cart.save()
+
+    // Send order confirmation email
+    try {
+      const user = await User.findById(req.user.id)
+      if (user && user.email) {
+        await sendOrderConfirmationEmail(order, user)
+      }
+    } catch (emailError) {
+      logger.error('Error sending order confirmation email:', emailError)
+      // Don't fail order creation if email fails
+    }
 
     res.status(201).json({
       success: true,

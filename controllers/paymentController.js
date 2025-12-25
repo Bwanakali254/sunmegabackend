@@ -15,7 +15,7 @@ const initiatePayment = async (req, res, next) => {
     const order = await Order.findOne({
       _id: orderId,
       userId: req.user.id
-    })
+    }).populate('userId')
 
     if (!order) {
       return res.status(404).json({
@@ -107,11 +107,29 @@ const pesapalCallback = async (req, res, next) => {
     // Verify payment status with Pesapal
     const paymentStatus = await getPaymentStatus(OrderTrackingId)
 
-    // Update order payment status
-    if (paymentStatus.paymentStatus === 'COMPLETED') {
+    // Update order payment status (Pesapal returns status as string like "COMPLETED", "FAILED")
+    const statusUpper = paymentStatus.paymentStatus?.toUpperCase() || ''
+    if (statusUpper === 'COMPLETED') {
+      const wasPending = order.paymentStatus !== 'paid'
       order.paymentStatus = 'paid'
-      order.orderStatus = 'confirmed'
-    } else if (paymentStatus.paymentStatus === 'FAILED') {
+      if (order.orderStatus === 'pending') {
+        order.orderStatus = 'confirmed'
+      }
+      
+      // Send order confirmation email if payment just completed
+      if (wasPending) {
+        try {
+          const User = require('../models/User')
+          const { sendOrderConfirmationEmail } = require('../utils/emailService')
+          const user = await User.findById(order.userId)
+          if (user && user.email) {
+            await sendOrderConfirmationEmail(order, user)
+          }
+        } catch (emailError) {
+          logger.error('Error sending order confirmation email:', emailError)
+        }
+      }
+    } else if (statusUpper === 'FAILED') {
       order.paymentStatus = 'failed'
     } else {
       order.paymentStatus = 'processing'
@@ -160,13 +178,29 @@ const pesapalIPN = async (req, res, next) => {
       })
     }
 
-    // Update order based on payment status
-    if (verification.paymentStatus === 'COMPLETED') {
+    // Update order based on payment status (Pesapal returns status as string)
+    const statusUpper = verification.paymentStatus?.toUpperCase() || ''
+    if (statusUpper === 'COMPLETED') {
+      const wasPending = order.paymentStatus !== 'paid'
       order.paymentStatus = 'paid'
       if (order.orderStatus === 'pending') {
         order.orderStatus = 'confirmed'
       }
-    } else if (verification.paymentStatus === 'FAILED') {
+      
+      // Send order confirmation email if payment just completed
+      if (wasPending) {
+        try {
+          const User = require('../models/User')
+          const { sendOrderConfirmationEmail } = require('../utils/emailService')
+          const user = await User.findById(order.userId)
+          if (user && user.email) {
+            await sendOrderConfirmationEmail(order, user)
+          }
+        } catch (emailError) {
+          logger.error('Error sending order confirmation email:', emailError)
+        }
+      }
+    } else if (statusUpper === 'FAILED') {
       order.paymentStatus = 'failed'
     }
 
@@ -218,14 +252,27 @@ const checkPaymentStatus = async (req, res, next) => {
       try {
         const paymentStatus = await getPaymentStatus(order.paymentId)
         
-        // Update order if status changed
-        if (paymentStatus.paymentStatus === 'COMPLETED' && order.paymentStatus !== 'paid') {
+        // Update order if status changed (Pesapal returns status as string)
+        const statusUpper = paymentStatus.paymentStatus?.toUpperCase() || ''
+        if (statusUpper === 'COMPLETED' && order.paymentStatus !== 'paid') {
           order.paymentStatus = 'paid'
           if (order.orderStatus === 'pending') {
             order.orderStatus = 'confirmed'
           }
           await order.save()
-        } else if (paymentStatus.paymentStatus === 'FAILED' && order.paymentStatus !== 'failed') {
+          
+          // Send order confirmation email
+          try {
+            const User = require('../models/User')
+            const { sendOrderConfirmationEmail } = require('../utils/emailService')
+            const user = await User.findById(order.userId)
+            if (user && user.email) {
+              await sendOrderConfirmationEmail(order, user)
+            }
+          } catch (emailError) {
+            logger.error('Error sending order confirmation email:', emailError)
+          }
+        } else if (statusUpper === 'FAILED' && order.paymentStatus !== 'failed') {
           order.paymentStatus = 'failed'
           await order.save()
         }

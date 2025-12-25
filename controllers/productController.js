@@ -382,17 +382,33 @@ const getProductReviews = async (req, res, next) => {
       })
     }
 
-    // TODO: Implement Review model and populate reviews
-    // For now, return empty array
+    const Review = require('../models/Review')
+    const skip = (parseInt(page) - 1) * parseInt(limit)
+
+    const [reviews, total] = await Promise.all([
+      Review.find({
+        productId: req.params.id,
+        status: 'approved'
+      })
+        .populate('userId', 'firstName lastName')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit)),
+      Review.countDocuments({
+        productId: req.params.id,
+        status: 'approved'
+      })
+    ])
+
     res.json({
       success: true,
       data: {
-        reviews: [],
+        reviews,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
-          total: 0,
-          pages: 0
+          total,
+          pages: Math.ceil(total / parseInt(limit))
         }
       }
     })

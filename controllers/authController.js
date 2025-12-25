@@ -151,8 +151,19 @@ const login = async (req, res, next) => {
  * @access  Private
  */
 const logout = async (req, res) => {
+  // Clear refresh token cookie
   res.cookie('refreshToken', '', {
     httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    expires: new Date(0)
+  })
+
+  // Clear access token cookie if it exists
+  res.cookie('token', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
     expires: new Date(0)
   })
 

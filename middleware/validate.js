@@ -314,6 +314,46 @@ const schemas = {
   updateQuoteStatus: Joi.object({
     status: Joi.string().valid('pending', 'contacted', 'quoted', 'closed'),
     notes: Joi.string().trim().max(1000)
+  }),
+
+  createReview: Joi.object({
+    productId: Joi.string().required()
+      .messages({
+        'string.empty': 'Product ID is required',
+        'any.required': 'Product ID is required'
+      }),
+    rating: Joi.number().integer().min(1).max(5).required()
+      .messages({
+        'number.base': 'Rating must be a number',
+        'number.min': 'Rating must be at least 1',
+        'number.max': 'Rating cannot exceed 5',
+        'any.required': 'Rating is required'
+      }),
+    title: Joi.string().trim().max(100).allow('')
+      .messages({
+        'string.max': 'Title cannot exceed 100 characters'
+      }),
+    comment: Joi.string().trim().max(1000).allow('')
+      .messages({
+        'string.max': 'Comment cannot exceed 1000 characters'
+      })
+  }),
+
+  updateReview: Joi.object({
+    rating: Joi.number().integer().min(1).max(5)
+      .messages({
+        'number.base': 'Rating must be a number',
+        'number.min': 'Rating must be at least 1',
+        'number.max': 'Rating cannot exceed 5'
+      }),
+    title: Joi.string().trim().max(100).allow('')
+      .messages({
+        'string.max': 'Title cannot exceed 100 characters'
+      }),
+    comment: Joi.string().trim().max(1000).allow('')
+      .messages({
+        'string.max': 'Comment cannot exceed 1000 characters'
+      })
   })
 }
 

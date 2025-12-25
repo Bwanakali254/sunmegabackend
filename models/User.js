@@ -4,34 +4,45 @@ const bcrypt = require('bcryptjs')
 const userSchema = new mongoose.Schema({
   firstName: {
     type: String,
-    required: [true, 'Please provide a first name'],
+    required: true,
     trim: true,
     maxlength: [50, 'First name cannot be more than 50 characters']
   },
   lastName: {
     type: String,
-    required: [true, 'Please provide a last name'],
+    required: true,
     trim: true,
     maxlength: [50, 'Last name cannot be more than 50 characters']
   },
   email: {
     type: String,
-    required: [true, 'Please provide an email'],
+    required: true,
     unique: true,
+    sparse: true, // Allows multiple null values but enforces uniqueness for non-null values
     lowercase: true,
     trim: true,
     match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
   },
   phone: {
     type: String,
-    required: [true, 'Please provide a phone number'],
     trim: true
   },
   password: {
     type: String,
-    required: [true, 'Please provide a password'],
     minlength: [8, 'Password must be at least 8 characters'],
-    select: false // Don't return password by default
+    select: false, // Don't return password by default
+    required: function() {
+      return this.provider === 'local'
+    }
+  },
+  provider: {
+    type: String,
+    enum: ['local', 'google', 'facebook'],
+    default: 'local'
+  },
+  providerId: {
+    type: String,
+    sparse: true // Allows multiple null values but enforces uniqueness for non-null values
   },
   role: {
     type: String,
@@ -68,10 +79,11 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 })
 
-// Hash password before saving
+// Hash password before saving (only for local auth)
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    next()
+  // Skip password hashing for OAuth users or if password is not modified
+  if (!this.isModified('password') || this.provider !== 'local' || !this.password) {
+    return next()
   }
 
   const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_ROUNDS) || 12)
