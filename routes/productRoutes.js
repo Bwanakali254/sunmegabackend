@@ -3,6 +3,7 @@ const router = express.Router()
 const { protect } = require('../middleware/auth')
 const authorize = require('../middleware/authorize')
 const { validate, schemas } = require('../middleware/validate')
+const { uploadMultiple } = require('../middleware/upload')
 const {
   getProducts,
   getProduct,
@@ -23,9 +24,9 @@ router.get('/category/:category', getProductsByCategory)
 router.get('/:id', getProduct)
 router.get('/:id/reviews', getProductReviews)
 
-// Protected routes (Admin only)
-router.post('/', protect, authorize('admin'), validate(schemas.createProduct), createProduct)
-router.put('/:id', protect, authorize('admin'), validate(schemas.updateProduct), updateProduct)
+// Protected routes (Admin only) - with image upload support
+router.post('/', protect, authorize('admin'), uploadMultiple('images', 10), validate(schemas.createProduct), createProduct)
+router.put('/:id', protect, authorize('admin'), uploadMultiple('images', 10), validate(schemas.updateProduct), updateProduct)
 router.delete('/:id', protect, authorize('admin'), deleteProduct)
 
 module.exports = router

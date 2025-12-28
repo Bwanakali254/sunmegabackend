@@ -28,7 +28,7 @@ const getProducts = async (req, res, next) => {
     }
 
     // Featured filter
-    if (featured === 'true') {
+    if (featured === 'true' || featured === true) {
       query.featured = true
     }
 
@@ -39,9 +39,13 @@ const getProducts = async (req, res, next) => {
       if (maxPrice) query.price.$lte = parseFloat(maxPrice)
     }
 
-    // Search filter
-    if (search) {
-      query.$text = { $search: search }
+    // Search filter - use regex for reliable search (works without text index)
+    if (search && search.trim()) {
+      query.$or = [
+        { name: { $regex: search.trim(), $options: 'i' } },
+        { description: { $regex: search.trim(), $options: 'i' } },
+        { shortDescription: { $regex: search.trim(), $options: 'i' } }
+      ]
     }
 
     // Sort options
@@ -71,16 +75,26 @@ const getProducts = async (req, res, next) => {
     const limitNum = parseInt(limit)
     const skip = (pageNum - 1) * limitNum
 
-    // Execute query
-    const products = await Product.find(query)
-      .select('-__v')
-      .sort(sortOption)
-      .skip(skip)
-      .limit(limitNum)
-      .lean()
+    // Execute query with error handling
+    let products = []
+    let total = 0
+    
+    try {
+      products = await Product.find(query)
+        .select('-__v')
+        .sort(sortOption)
+        .skip(skip)
+        .limit(limitNum)
+        .lean()
 
-    // Get total count for pagination
-    const total = await Product.countDocuments(query)
+      // Get total count for pagination
+      total = await Product.countDocuments(query)
+    } catch (error) {
+      // If query fails (e.g., text index issue), log and return empty results
+      logger.error('Product query error:', error)
+      products = []
+      total = 0
+    }
 
     res.json({
       success: true,
@@ -275,7 +289,34 @@ const getFeaturedProducts = async (req, res, next) => {
  */
 const createProduct = async (req, res, next) => {
   try {
-    const product = await Product.create(req.body)
+    const { getFileUrl } = require('../middleware/upload')
+    
+    // Handle uploaded images
+    let images = []
+    if (req.files && req.files.length > 0) {
+      images = req.files.map(file => getFileUrl(file.filename))
+    } else if (req.body.images) {
+      // If images provided as URLs (from frontend)
+      images = Array.isArray(req.body.images) ? req.body.images : [req.body.images]
+    }
+    
+    // Validate that at least one image is provided
+    if (images.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'At least one image is required',
+          code: 'IMAGE_REQUIRED'
+        }
+      })
+    }
+    
+    const productData = {
+      ...req.body,
+      images: images
+    }
+    
+    const product = await Product.create(productData)
 
     res.status(201).json({
       success: true,
@@ -296,10 +337,24 @@ const createProduct = async (req, res, next) => {
 const updateProduct = async (req, res, next) => {
   try {
     const { id } = req.params
+    const { getFileUrl } = require('../middleware/upload')
+    
+    // Handle uploaded images
+    let updateData = { ...req.body }
+    if (req.files && req.files.length > 0) {
+      const uploadedImages = req.files.map(file => getFileUrl(file.filename))
+      // Merge with existing images if provided
+      if (req.body.images) {
+        const existingImages = Array.isArray(req.body.images) ? req.body.images : [req.body.images]
+        updateData.images = [...existingImages, ...uploadedImages]
+      } else {
+        updateData.images = uploadedImages
+      }
+    }
 
     const product = await Product.findByIdAndUpdate(
       id,
-      req.body,
+      updateData,
       {
         new: true,
         runValidators: true
@@ -348,9 +403,8 @@ const deleteProduct = async (req, res, next) => {
       })
     }
 
-    // Soft delete - set active to false
-    product.active = false
-    await product.save()
+    // Actually delete the product from database
+    await Product.findByIdAndDelete(id)
 
     res.json({
       success: true,

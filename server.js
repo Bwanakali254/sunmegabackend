@@ -5,6 +5,7 @@ const helmet = require('helmet')
 const morgan = require('morgan')
 const compression = require('compression')
 const cookieParser = require('cookie-parser')
+const path = require('path')
 require('dotenv').config()
 
 const connectDB = require('./config/database')
@@ -52,6 +53,9 @@ app.get('/health', (req, res) => {
   })
 })
 
+// Static file serving for uploads
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'))
 app.use('/api/products', require('./routes/productRoutes'))
@@ -65,6 +69,8 @@ app.use('/api/users', require('./routes/userRoutes'))
 app.use('/api/admin', require('./routes/adminRoutes'))
 app.use('/api/reviews', require('./routes/reviewRoutes'))
 app.use('/api/wishlist', require('./routes/wishlistRoutes'))
+app.use('/api/cms', require('./routes/cmsRoutes'))
+app.use('/api/admin/cms', require('./routes/cmsRoutes'))
 
 // 404 Handler
 app.use((req, res) => {

@@ -3,7 +3,44 @@ const Joi = require('joi')
 // Validation middleware factory
 const validate = (schema) => {
   return (req, res, next) => {
-    const { error, value } = schema.validate(req.body, {
+    // For multipart/form-data, combine body and files
+    const dataToValidate = { ...req.body }
+    
+    // If files are uploaded, don't validate images field (it will be handled separately)
+    if (req.files && req.files.length > 0) {
+      // Remove images from validation if files are present
+      delete dataToValidate.images
+    }
+    
+    // Parse JSON strings (e.g., specifications from FormData)
+    if (dataToValidate.specifications && typeof dataToValidate.specifications === 'string') {
+      try {
+        dataToValidate.specifications = JSON.parse(dataToValidate.specifications)
+      } catch (e) {
+        // If parsing fails, keep as is and let validation handle it
+      }
+    }
+    
+    // Convert string numbers to actual numbers for FormData
+    if (dataToValidate.price && typeof dataToValidate.price === 'string') {
+      dataToValidate.price = parseFloat(dataToValidate.price)
+    }
+    if (dataToValidate.compareAtPrice && typeof dataToValidate.compareAtPrice === 'string' && dataToValidate.compareAtPrice !== '') {
+      dataToValidate.compareAtPrice = parseFloat(dataToValidate.compareAtPrice)
+    }
+    if (dataToValidate.stock !== undefined && typeof dataToValidate.stock === 'string') {
+      dataToValidate.stock = parseInt(dataToValidate.stock)
+    }
+    
+    // Convert string booleans
+    if (dataToValidate.featured !== undefined && typeof dataToValidate.featured === 'string') {
+      dataToValidate.featured = dataToValidate.featured === 'true' || dataToValidate.featured === '1'
+    }
+    if (dataToValidate.active !== undefined && typeof dataToValidate.active === 'string') {
+      dataToValidate.active = dataToValidate.active === 'true' || dataToValidate.active === '1'
+    }
+    
+    const { error, value } = schema.validate(dataToValidate, {
       abortEarly: false,
       stripUnknown: true
     })
@@ -123,24 +160,30 @@ const schemas = {
       .messages({
         'string.empty': 'Product description is required'
       }),
-    shortDescription: Joi.string().trim().max(500),
-    price: Joi.number().min(0).required()
+    shortDescription: Joi.string().trim().max(500).allow(''),
+    price: Joi.alternatives().try(
+      Joi.number().min(0),
+      Joi.string().pattern(/^\d+(\.\d+)?$/).custom((value) => parseFloat(value))
+    ).required()
       .messages({
         'number.base': 'Price must be a number',
         'number.min': 'Price cannot be negative',
         'any.required': 'Price is required'
       }),
-    compareAtPrice: Joi.number().min(0),
+    compareAtPrice: Joi.alternatives().try(
+      Joi.number().min(0),
+      Joi.string().pattern(/^\d+(\.\d+)?$/).custom((value) => parseFloat(value)),
+      Joi.string().allow('')
+    ).optional(),
     category: Joi.string().valid('Batteries', 'Inverters', 'Energy Storage Systems', 'Converters', 'Controllers', 'Portable Power').required()
       .messages({
         'any.only': 'Invalid product category',
         'any.required': 'Category is required'
       }),
-    images: Joi.array().items(Joi.string()).min(1).required()
-      .messages({
-        'array.min': 'At least one image is required',
-        'any.required': 'Images are required'
-      }),
+    images: Joi.alternatives().try(
+      Joi.array().items(Joi.string()).min(1),
+      Joi.string()
+    ).optional(),
     specifications: Joi.object({
       power: Joi.string(),
       voltage: Joi.string(),
@@ -151,10 +194,19 @@ const schemas = {
       efficiency: Joi.string(),
       temperatureRange: Joi.string()
     }),
-    stock: Joi.number().integer().min(0).default(0),
-    sku: Joi.string().trim().uppercase(),
-    featured: Joi.boolean().default(false),
-    active: Joi.boolean().default(true)
+    stock: Joi.alternatives().try(
+      Joi.number().integer().min(0),
+      Joi.string().pattern(/^\d+$/).custom((value) => parseInt(value))
+    ).optional().default(0),
+    sku: Joi.string().trim().uppercase().allow(''),
+    featured: Joi.alternatives().try(
+      Joi.boolean(),
+      Joi.string().valid('true', 'false', '1', '0').custom((value) => value === 'true' || value === '1')
+    ).optional().default(false),
+    active: Joi.alternatives().try(
+      Joi.boolean(),
+      Joi.string().valid('true', 'false', '1', '0').custom((value) => value === 'true' || value === '1')
+    ).optional().default(true)
   }),
 
   updateProduct: Joi.object({
@@ -354,6 +406,56 @@ const schemas = {
       .messages({
         'string.max': 'Comment cannot exceed 1000 characters'
       })
+  }),
+
+  createPage: Joi.object({
+    slug: Joi.string().trim().lowercase().min(1).max(100).required()
+      .pattern(/^[a-z0-9-]+$/)
+      .messages({
+        'string.empty': 'Slug is required',
+        'string.max': 'Slug cannot exceed 100 characters',
+        'string.pattern.base': 'Slug can only contain lowercase letters, numbers, and hyphens'
+      }),
+    title: Joi.string().trim().min(1).max(200).required()
+      .messages({
+        'string.empty': 'Title is required',
+        'string.max': 'Title cannot exceed 200 characters'
+      }),
+    metaDescription: Joi.string().trim().max(500).allow(''),
+    sections: Joi.array().items(
+      Joi.object({
+        type: Joi.string().valid('text', 'heading', 'image', 'list', 'quote').required(),
+        content: Joi.string().trim().allow(''),
+        imageUrl: Joi.string().uri().allow(''),
+        order: Joi.number().integer().min(0).default(0)
+      })
+    ).default([]),
+    heroImage: Joi.string().uri().allow(''),
+    isActive: Joi.boolean().default(true)
+  }),
+
+  updatePage: Joi.object({
+    slug: Joi.string().trim().lowercase().min(1).max(100)
+      .pattern(/^[a-z0-9-]+$/)
+      .messages({
+        'string.max': 'Slug cannot exceed 100 characters',
+        'string.pattern.base': 'Slug can only contain lowercase letters, numbers, and hyphens'
+      }),
+    title: Joi.string().trim().min(1).max(200)
+      .messages({
+        'string.max': 'Title cannot exceed 200 characters'
+      }),
+    metaDescription: Joi.string().trim().max(500).allow(''),
+    sections: Joi.array().items(
+      Joi.object({
+        type: Joi.string().valid('text', 'heading', 'image', 'list', 'quote').required(),
+        content: Joi.string().trim().allow(''),
+        imageUrl: Joi.string().uri().allow(''),
+        order: Joi.number().integer().min(0).default(0)
+      })
+    ),
+    heroImage: Joi.string().uri().allow(''),
+    isActive: Joi.boolean()
   })
 }
 
