@@ -75,6 +75,18 @@ const getProducts = async (req, res, next) => {
     const limitNum = parseInt(limit)
     const skip = (pageNum - 1) * limitNum
 
+    // Check MongoDB connection before querying
+    const mongoose = require('mongoose')
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          message: 'Database connection unavailable. Please try again later.',
+          code: 'DATABASE_UNAVAILABLE'
+        }
+      })
+    }
+
     // Execute query with error handling
     let products = []
     let total = 0
@@ -90,10 +102,15 @@ const getProducts = async (req, res, next) => {
       // Get total count for pagination
       total = await Product.countDocuments(query)
     } catch (error) {
-      // If query fails (e.g., text index issue), log and return empty results
+      // If query fails (e.g., connection issue), log and return error
       logger.error('Product query error:', error)
-      products = []
-      total = 0
+      return res.status(503).json({
+        success: false,
+        error: {
+          message: 'Failed to fetch products. Database connection issue.',
+          code: 'DATABASE_ERROR'
+        }
+      })
     }
 
     res.json({
@@ -290,14 +307,34 @@ const getFeaturedProducts = async (req, res, next) => {
 const createProduct = async (req, res, next) => {
   try {
     const { getFileUrl } = require('../middleware/upload')
+    const { generateProductSlug } = require('../utils/slugify')
+    
+    // Validate product name is provided (required for slug generation)
+    if (!req.body.name || typeof req.body.name !== 'string' || !req.body.name.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Product name is required',
+          code: 'NAME_REQUIRED'
+        }
+      })
+    }
     
     // Handle uploaded images
     let images = []
+    
+    // Priority 1: Check for uploaded files
     if (req.files && req.files.length > 0) {
       images = req.files.map(file => getFileUrl(file.filename))
-    } else if (req.body.images) {
-      // If images provided as URLs (from frontend)
-      images = Array.isArray(req.body.images) ? req.body.images : [req.body.images]
+    } 
+    // Priority 2: Check for image URLs in body (from FormData)
+    else if (req.body.images) {
+      // FormData can send images as array or single value
+      if (Array.isArray(req.body.images)) {
+        images = req.body.images.filter(img => img && typeof img === 'string' && img.trim())
+      } else if (typeof req.body.images === 'string' && req.body.images.trim()) {
+        images = [req.body.images.trim()]
+      }
     }
     
     // Validate that at least one image is provided
@@ -305,18 +342,37 @@ const createProduct = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         error: {
-          message: 'At least one image is required',
+          message: 'At least one image is required. Please upload an image file or provide an image URL.',
           code: 'IMAGE_REQUIRED'
         }
       })
     }
     
-    const productData = {
-      ...req.body,
-      images: images
+    // Clean up product data - remove images and slug from body
+    // Slug will be auto-generated server-side
+    const { images: bodyImages, slug, ...productData } = req.body
+    
+    // Ensure specifications is an object
+    if (productData.specifications && typeof productData.specifications === 'string') {
+      try {
+        productData.specifications = JSON.parse(productData.specifications)
+      } catch (e) {
+        // If parsing fails, set to empty object
+        productData.specifications = {}
+      }
     }
     
-    const product = await Product.create(productData)
+    // Auto-generate unique slug from product name (server-side only)
+    const uniqueSlug = await generateProductSlug(productData.name)
+    
+    // Create product with auto-generated slug
+    // Ensure active defaults to true if not explicitly set
+    const product = await Product.create({
+      ...productData,
+      slug: uniqueSlug, // Server-generated slug
+      images: images,
+      active: productData.active !== undefined ? productData.active : true // Explicitly set active: true if not provided
+    })
 
     res.status(201).json({
       success: true,
@@ -325,6 +381,21 @@ const createProduct = async (req, res, next) => {
       }
     })
   } catch (error) {
+    // Enhanced error handling for validation errors
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => ({
+        field: err.path,
+        message: err.message
+      }))
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Validation failed',
+          code: 'VALIDATION_ERROR',
+          errors
+        }
+      })
+    }
     next(error)
   }
 }
@@ -338,9 +409,32 @@ const updateProduct = async (req, res, next) => {
   try {
     const { id } = req.params
     const { getFileUrl } = require('../middleware/upload')
+    const { generateProductSlug } = require('../utils/slugify')
+    
+    // Find existing product first
+    const existingProduct = await Product.findById(id)
+    if (!existingProduct) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: 'Product not found',
+          code: 'PRODUCT_NOT_FOUND'
+        }
+      })
+    }
     
     // Handle uploaded images
     let updateData = { ...req.body }
+    
+    // Remove slug from update data - it will be auto-generated if name changes
+    delete updateData.slug
+    
+    // If product name is being updated, regenerate slug
+    if (updateData.name && updateData.name.trim() && updateData.name.trim() !== existingProduct.name) {
+      // Auto-generate new unique slug from updated name
+      updateData.slug = await generateProductSlug(updateData.name, id)
+    }
+    
     if (req.files && req.files.length > 0) {
       const uploadedImages = req.files.map(file => getFileUrl(file.filename))
       // Merge with existing images if provided
@@ -349,6 +443,16 @@ const updateProduct = async (req, res, next) => {
         updateData.images = [...existingImages, ...uploadedImages]
       } else {
         updateData.images = uploadedImages
+      }
+    }
+    
+    // Ensure specifications is an object if provided
+    if (updateData.specifications && typeof updateData.specifications === 'string') {
+      try {
+        updateData.specifications = JSON.parse(updateData.specifications)
+      } catch (e) {
+        // If parsing fails, keep existing specifications
+        delete updateData.specifications
       }
     }
 

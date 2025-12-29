@@ -6,10 +6,18 @@ const validate = (schema) => {
     // For multipart/form-data, combine body and files
     const dataToValidate = { ...req.body }
     
-    // If files are uploaded, don't validate images field (it will be handled separately)
+    // Handle images field - if files are uploaded, skip image validation
+    // If images are URLs, ensure they're in array format
     if (req.files && req.files.length > 0) {
-      // Remove images from validation if files are present
+      // Remove images from validation if files are present (files handled separately)
       delete dataToValidate.images
+    } else if (dataToValidate.images) {
+      // Ensure images is an array (FormData might send as single value or array)
+      if (!Array.isArray(dataToValidate.images)) {
+        dataToValidate.images = [dataToValidate.images]
+      }
+      // Filter out empty values
+      dataToValidate.images = dataToValidate.images.filter(img => img && typeof img === 'string' && img.trim())
     }
     
     // Parse JSON strings (e.g., specifications from FormData)
@@ -17,7 +25,8 @@ const validate = (schema) => {
       try {
         dataToValidate.specifications = JSON.parse(dataToValidate.specifications)
       } catch (e) {
-        // If parsing fails, keep as is and let validation handle it
+        // If parsing fails, set to empty object
+        dataToValidate.specifications = {}
       }
     }
     
@@ -162,13 +171,20 @@ const schemas = {
       }),
     shortDescription: Joi.string().trim().max(500).allow(''),
     price: Joi.alternatives().try(
-      Joi.number().min(0),
-      Joi.string().pattern(/^\d+(\.\d+)?$/).custom((value) => parseFloat(value))
+      Joi.number().min(0.01),
+      Joi.string().pattern(/^\d+(\.\d+)?$/).custom((value) => {
+        const num = parseFloat(value)
+        if (num <= 0) {
+          throw new Error('Price must be greater than zero')
+        }
+        return num
+      })
     ).required()
       .messages({
         'number.base': 'Price must be a number',
-        'number.min': 'Price cannot be negative',
-        'any.required': 'Price is required'
+        'number.min': 'Price must be greater than zero',
+        'any.required': 'Price is required',
+        'any.custom': 'Price must be greater than zero'
       }),
     compareAtPrice: Joi.alternatives().try(
       Joi.number().min(0),
@@ -180,6 +196,8 @@ const schemas = {
         'any.only': 'Invalid product category',
         'any.required': 'Category is required'
       }),
+    // Slug is auto-generated server-side, so it should not be in the request
+    slug: Joi.string().optional().strip(), // Strip slug if sent by client
     images: Joi.alternatives().try(
       Joi.array().items(Joi.string()).min(1),
       Joi.string()
@@ -213,9 +231,24 @@ const schemas = {
     name: Joi.string().trim().min(1).max(200),
     description: Joi.string().trim(),
     shortDescription: Joi.string().trim().max(500),
-    price: Joi.number().min(0),
-    compareAtPrice: Joi.number().min(0),
+    price: Joi.alternatives().try(
+      Joi.number().min(0.01),
+      Joi.string().pattern(/^\d+(\.\d+)?$/).custom((value) => {
+        const num = parseFloat(value)
+        if (num <= 0) {
+          throw new Error('Price must be greater than zero')
+        }
+        return num
+      })
+    ).optional(),
+    compareAtPrice: Joi.alternatives().try(
+      Joi.number().min(0),
+      Joi.string().pattern(/^\d+(\.\d+)?$/).custom((value) => parseFloat(value)),
+      Joi.string().allow('')
+    ).optional(),
     category: Joi.string().valid('Batteries', 'Inverters', 'Energy Storage Systems', 'Converters', 'Controllers', 'Portable Power'),
+    // Slug is auto-generated server-side when name changes, so it should not be in the request
+    slug: Joi.string().optional().strip(), // Strip slug if sent by client
     images: Joi.array().items(Joi.string()).min(1),
     specifications: Joi.object({
       power: Joi.string(),
@@ -227,10 +260,19 @@ const schemas = {
       efficiency: Joi.string(),
       temperatureRange: Joi.string()
     }),
-    stock: Joi.number().integer().min(0),
-    sku: Joi.string().trim().uppercase(),
-    featured: Joi.boolean(),
-    active: Joi.boolean()
+    stock: Joi.alternatives().try(
+      Joi.number().integer().min(0),
+      Joi.string().pattern(/^\d+$/).custom((value) => parseInt(value))
+    ).optional(),
+    sku: Joi.string().trim().uppercase().allow(''),
+    featured: Joi.alternatives().try(
+      Joi.boolean(),
+      Joi.string().valid('true', 'false', '1', '0').custom((value) => value === 'true' || value === '1')
+    ).optional(),
+    active: Joi.alternatives().try(
+      Joi.boolean(),
+      Joi.string().valid('true', 'false', '1', '0').custom((value) => value === 'true' || value === '1')
+    ).optional()
   }),
 
   addToCart: Joi.object({

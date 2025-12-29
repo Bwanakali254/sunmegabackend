@@ -5,7 +5,7 @@ const wishlistSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
-    unique: true // One wishlist per user
+    unique: true // One wishlist per user - unique: true automatically creates an index
   },
   items: [{
     productId: {
@@ -23,7 +23,7 @@ const wishlistSchema = new mongoose.Schema({
 })
 
 // Indexes
-wishlistSchema.index({ userId: 1 })
+// Note: userId index is automatically created by unique: true in the schema above
 wishlistSchema.index({ 'items.productId': 1 })
 
 module.exports = mongoose.model('Wishlist', wishlistSchema)

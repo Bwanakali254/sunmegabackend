@@ -46,12 +46,13 @@ const reviewSchema = new mongoose.Schema({
 })
 
 // Prevent duplicate reviews from same user for same product
+// Compound unique index: can be used for queries on productId alone or productId+userId
 reviewSchema.index({ productId: 1, userId: 1 }, { unique: true })
 
 // Indexes for efficient queries
-reviewSchema.index({ productId: 1, status: 1 })
-reviewSchema.index({ userId: 1 })
-reviewSchema.index({ createdAt: -1 })
+reviewSchema.index({ productId: 1, status: 1 }) // For product reviews with status filter
+// Note: No separate userId index needed - we don't query reviews by userId alone
+reviewSchema.index({ createdAt: -1 }) // For sorting by date
 
 module.exports = mongoose.model('Review', reviewSchema)
 

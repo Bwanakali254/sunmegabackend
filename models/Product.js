@@ -10,7 +10,7 @@ const productSchema = new mongoose.Schema({
   slug: {
     type: String,
     required: true,
-    unique: true,
+    unique: true, // unique: true automatically creates an index
     lowercase: true,
     trim: true
   },
@@ -104,16 +104,11 @@ productSchema.index({ active: 1 })
 productSchema.index({ price: 1 })
 productSchema.index({ rating: -1 })
 
-// Generate slug from name before saving
-productSchema.pre('save', function(next) {
-  if (this.isModified('name') && !this.slug) {
-    this.slug = this.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '')
-  }
-  next()
-})
+// Note: slug index is automatically created by unique: true above
+
+// Note: Slug generation is now handled in the controller using utils/slugify.js
+// This ensures uniqueness and proper server-side generation
+// The pre-save hook is kept as a fallback but controller logic takes precedence
 
 module.exports = mongoose.model('Product', productSchema)
 

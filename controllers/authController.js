@@ -1,4 +1,5 @@
 const crypto = require('crypto')
+const mongoose = require('mongoose')
 const User = require('../models/User')
 const { generateToken, generateRefreshToken } = require('../utils/generateToken')
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/emailService')
@@ -89,7 +90,23 @@ const login = async (req, res, next) => {
     const { email, password } = req.body
 
     // Find user and include password for comparison
-    const user = await User.findOne({ email }).select('+password')
+    let user
+    try {
+      user = await User.findOne({ email }).select('+password')
+    } catch (dbError) {
+      // Only return 503 if it's a database connection error
+      if (dbError.name === 'MongooseError' || dbError.message?.includes('buffering') || mongoose.connection.readyState !== 1) {
+        return res.status(503).json({
+          success: false,
+          error: {
+            message: 'Database connection unavailable. Please try again later.',
+            code: 'DATABASE_UNAVAILABLE'
+          }
+        })
+      }
+      // For other errors, pass to error handler
+      throw dbError
+    }
 
     if (!user) {
       return res.status(401).json({

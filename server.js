@@ -71,6 +71,8 @@ app.use('/api/reviews', require('./routes/reviewRoutes'))
 app.use('/api/wishlist', require('./routes/wishlistRoutes'))
 app.use('/api/cms', require('./routes/cmsRoutes'))
 app.use('/api/admin/cms', require('./routes/cmsRoutes'))
+app.use('/api', require('./routes/pageContentRoutes'))
+app.use('/api/admin', require('./routes/pageContentRoutes'))
 
 // 404 Handler
 app.use((req, res) => {
