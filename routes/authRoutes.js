@@ -28,9 +28,9 @@ router.post('/refresh-token', refreshToken)
 
 // OAuth routes (with rate limiting)
 router.get('/oauth/google', authLimiter, passport.authenticate('google', { scope: ['profile', 'email'] }))
-router.get('/oauth/google/callback', authLimiter, passport.authenticate('google', { session: false, failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=oauth_failed` }), handleOAuthCallback)
+router.get('/oauth/google/callback', authLimiter, passport.authenticate('google', { session: false, failureRedirect: `${process.env.FRONTEND_URL}/login?error=oauth_failed` }), handleOAuthCallback)
 router.get('/oauth/facebook', authLimiter, passport.authenticate('facebook', { scope: ['email'] }))
-router.get('/oauth/facebook/callback', authLimiter, passport.authenticate('facebook', { session: false, failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=oauth_failed` }), handleOAuthCallback)
+router.get('/oauth/facebook/callback', authLimiter, passport.authenticate('facebook', { session: false, failureRedirect: `${process.env.FRONTEND_URL}/login?error=oauth_failed` }), handleOAuthCallback)
 
 // Protected routes
 router.post('/logout', protect, logout)

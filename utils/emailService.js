@@ -62,7 +62,7 @@ const sendEmail = async ({ to, subject, html, text }) => {
  * Send email verification email
  */
 const sendVerificationEmail = async (user, token) => {
-  const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${token}`
+  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`
   
   const html = `
     <!DOCTYPE html>
@@ -111,7 +111,7 @@ const sendVerificationEmail = async (user, token) => {
  * Send password reset email
  */
 const sendPasswordResetEmail = async (user, token) => {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`
   
   const html = `
     <!DOCTYPE html>
@@ -162,7 +162,7 @@ const sendPasswordResetEmail = async (user, token) => {
  * Send order confirmation email
  */
 const sendOrderConfirmationEmail = async (order, user) => {
-  const orderUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/orders/${order._id}`
+  const orderUrl = `${process.env.FRONTEND_URL}/orders/${order._id}`
   
   const itemsHtml = order.items.map(item => `
     <tr>

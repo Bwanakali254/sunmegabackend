@@ -13,6 +13,25 @@ const errorHandler = require('./middleware/errorHandler')
 const logger = require('./utils/logger')
 const passport = require('./config/passport')
 
+// Environment variable validation - CONTRACT: Fail fast on missing required vars
+const requiredEnvVars = [
+  'MONGODB_URI',
+  'JWT_SECRET',
+  'JWT_REFRESH_SECRET',
+  'FRONTEND_URL'
+]
+
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName])
+if (missingVars.length > 0) {
+  logger.error('❌ CRITICAL: Missing required environment variables:')
+  missingVars.forEach(varName => {
+    logger.error(`   - ${varName}`)
+  })
+  logger.error('')
+  logger.error('Server cannot start without these variables.')
+  process.exit(1)
+}
+
 // Initialize Express app
 const app = express()
 
@@ -22,12 +41,16 @@ connectDB()
 // Security Middleware
 app.use(helmet())
 
-// CORS Configuration - Allow both local development and Vercel production
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://sunmegalimited.vercel.app",
-  "https://sunmegafrontend.vercel.app"
-]
+// CORS Configuration - CONTRACT: Origins from environment variable
+const allowedOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+  : []
+
+if (allowedOrigins.length === 0) {
+  logger.error('❌ CRITICAL: CORS_ORIGINS environment variable is not set')
+  logger.error('Set CORS_ORIGINS as comma-separated list: "http://localhost:5173,https://sunmega.co.ke"')
+  process.exit(1)
+}
 
 app.use(
   cors({
@@ -112,6 +135,7 @@ const PORT = process.env.PORT || 5000
 
 const server = app.listen(PORT, () => {
   logger.info(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`)
+  logger.info(`CORS origins: ${allowedOrigins.join(', ')}`)
 })
 
 // Handle unhandled promise rejections

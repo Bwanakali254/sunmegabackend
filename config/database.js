@@ -14,11 +14,8 @@ const attemptConnection = async () => {
     return // Already attempting connection
   }
 
-  if (!process.env.MONGODB_URI) {
-    logger.error('❌ MONGODB_URI is not defined in .env file')
-    logger.error('Please add MONGODB_URI to your backend/.env file')
-    return false
-  }
+  // MONGODB_URI validation is handled in server.js startup
+  // This function assumes it's already validated
 
   isConnecting = true
   connectionRetries++

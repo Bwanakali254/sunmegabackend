@@ -320,29 +320,30 @@ const createProduct = async (req, res, next) => {
       })
     }
     
-    // Handle uploaded images
+    // Handle uploaded images - CONTRACT: Only accept file uploads, reject URLs
     let images = []
     
-    // Priority 1: Check for uploaded files
     if (req.files && req.files.length > 0) {
       images = req.files.map(file => getFileUrl(file.filename))
-    } 
-    // Priority 2: Check for image URLs in body (from FormData)
-    else if (req.body.images) {
-      // FormData can send images as array or single value
-      if (Array.isArray(req.body.images)) {
-        images = req.body.images.filter(img => img && typeof img === 'string' && img.trim())
-      } else if (typeof req.body.images === 'string' && req.body.images.trim()) {
-        images = [req.body.images.trim()]
-      }
     }
     
-    // Validate that at least one image is provided
+    // Reject image URLs from request body (contract violation)
+    if (req.body.images && (!req.files || req.files.length === 0)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Image URLs are not accepted. Please upload image files only.',
+          code: 'URLS_NOT_ACCEPTED'
+        }
+      })
+    }
+    
+    // Validate that at least one image file is provided
     if (images.length === 0) {
       return res.status(400).json({
         success: false,
         error: {
-          message: 'At least one image is required. Please upload an image file or provide an image URL.',
+          message: 'At least one image file is required. Please upload an image file.',
           code: 'IMAGE_REQUIRED'
         }
       })
@@ -435,16 +436,25 @@ const updateProduct = async (req, res, next) => {
       updateData.slug = await generateProductSlug(updateData.name, id)
     }
     
+    // Handle uploaded images - CONTRACT: Only accept file uploads, reject URLs
     if (req.files && req.files.length > 0) {
       const uploadedImages = req.files.map(file => getFileUrl(file.filename))
-      // Merge with existing images if provided
-      if (req.body.images) {
-        const existingImages = Array.isArray(req.body.images) ? req.body.images : [req.body.images]
-        updateData.images = [...existingImages, ...uploadedImages]
-      } else {
-        updateData.images = uploadedImages
-      }
+      updateData.images = uploadedImages
     }
+    
+    // Reject image URLs from request body (contract violation)
+    if (req.body.images && (!req.files || req.files.length === 0)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Image URLs are not accepted. Please upload image files only.',
+          code: 'URLS_NOT_ACCEPTED'
+        }
+      })
+    }
+    
+    // Remove images from updateData if no files uploaded (preserve existing images)
+    delete updateData.images
     
     // Ensure specifications is an object if provided
     if (updateData.specifications && typeof updateData.specifications === 'string') {

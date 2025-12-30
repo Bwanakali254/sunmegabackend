@@ -13,7 +13,12 @@ const PESAPAL_BASE_URL = process.env.PESAPAL_ENVIRONMENT === 'production'
 
 const CONSUMER_KEY = process.env.PESAPAL_CONSUMER_KEY
 const CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET
-const CALLBACK_URL = process.env.PESAPAL_CALLBACK_URL || 'http://localhost:5000/api/payments/pesapal/callback'
+// Construct callback URL from BACKEND_URL if PESAPAL_CALLBACK_URL not set
+const CALLBACK_URL = process.env.PESAPAL_CALLBACK_URL || (process.env.BACKEND_URL ? `${process.env.BACKEND_URL}/api/payments/pesapal/callback` : null)
+
+if (!CALLBACK_URL) {
+  throw new Error('PESAPAL_CALLBACK_URL or BACKEND_URL must be set')
+}
 
 let accessToken = null
 let tokenExpiry = null

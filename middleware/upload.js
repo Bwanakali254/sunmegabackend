@@ -83,11 +83,11 @@ const uploadMultiple = (fieldName = 'images', maxCount = 10) => {
   }
 }
 
-// Helper to get file URL
+// Helper to get relative file path (contract: database stores relative paths only)
 const getFileUrl = (filename) => {
   if (!filename) return null
-  const baseUrl = process.env.BACKEND_URL || 'http://localhost:5000'
-  return `${baseUrl}/uploads/${filename}`
+  // Return relative path only - frontend will construct full URL
+  return `/uploads/${filename}`
 }
 
 module.exports = {

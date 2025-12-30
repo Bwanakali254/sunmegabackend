@@ -15,20 +15,20 @@ const handleOAuthCallback = async (req, res, next) => {
 
     if (!profile || !profile.id) {
       logger.error('OAuth callback: No profile received', { provider, hasUser: !!req.user })
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=oauth_failed`)
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=oauth_failed`)
     }
 
     // Validate profile data
     if (!profile.id || typeof profile.id !== 'string') {
       logger.error('OAuth callback: Invalid profile ID', { provider })
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=oauth_failed`)
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=oauth_failed`)
     }
 
     const email = profile.email?.toLowerCase() || profile.emails?.[0]?.value?.toLowerCase()
     
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       logger.error('OAuth callback: No valid email in profile', { provider, hasEmail: !!email })
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/login?error=no_email`)
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_email`)
     }
 
     // Find or create user
@@ -86,14 +86,12 @@ const handleOAuthCallback = async (req, res, next) => {
     })
 
     // Redirect to frontend with access token
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-    const redirectUrl = `${frontendUrl}/auth/callback?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`
+    const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`
 
     res.redirect(redirectUrl)
   } catch (error) {
     logger.error('OAuth callback error:', error)
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-    res.redirect(`${frontendUrl}/login?error=oauth_error`)
+    res.redirect(`${process.env.FRONTEND_URL}/login?error=oauth_error`)
   }
 }
 

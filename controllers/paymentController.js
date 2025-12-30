@@ -94,14 +94,14 @@ const pesapalCallback = async (req, res, next) => {
     const { OrderTrackingId, OrderMerchantReference } = req.query
 
     if (!OrderTrackingId) {
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment?status=error&message=Missing tracking ID`)
+      return res.redirect(`${process.env.FRONTEND_URL}/payment?status=error&message=Missing tracking ID`)
     }
 
     // Get order by order number
     const order = await Order.findOne({ orderNumber: OrderMerchantReference })
 
     if (!order) {
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment?status=error&message=Order not found`)
+      return res.redirect(`${process.env.FRONTEND_URL}/payment?status=error&message=Order not found`)
     }
 
     // Verify payment status with Pesapal
@@ -140,13 +140,13 @@ const pesapalCallback = async (req, res, next) => {
 
     // Redirect to frontend
     const redirectUrl = paymentStatus.paymentStatus === 'COMPLETED'
-      ? `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment?status=success&orderId=${order._id}`
-      : `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment?status=failed&orderId=${order._id}`
+      ? `${process.env.FRONTEND_URL}/payment?status=success&orderId=${order._id}`
+      : `${process.env.FRONTEND_URL}/payment?status=failed&orderId=${order._id}`
 
     res.redirect(redirectUrl)
   } catch (error) {
     logger.error('Pesapal callback error:', error)
-    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment?status=error&message=Payment verification failed`)
+    res.redirect(`${process.env.FRONTEND_URL}/payment?status=error&message=Payment verification failed`)
   }
 }
 
