@@ -95,8 +95,19 @@ app.get('/health', (req, res) => {
   })
 })
 
-// Static file serving for uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+// Static file serving for uploads with CORS headers
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, 'uploads'), {
+    setHeaders: (res) => {
+      res.setHeader(
+        'Access-Control-Allow-Origin',
+        process.env.CORS_ORIGINS.split(',')[0].trim()
+      )
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+    }
+  })
+)
 
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'))
