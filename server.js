@@ -25,7 +25,8 @@ app.use(helmet())
 // CORS Configuration - Allow both local development and Vercel production
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://sunmegalimited.vercel.app"
+  "https://sunmegalimited.vercel.app",
+  "https://sunmegafrontend.vercel.app"
 ]
 
 app.use(
