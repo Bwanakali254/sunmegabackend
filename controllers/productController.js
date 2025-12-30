@@ -425,7 +425,9 @@ const updateProduct = async (req, res, next) => {
     }
     
     // Handle uploaded images
-    let updateData = { ...req.body }
+    // CONTRACT: Remove images from body immediately - only accept file uploads
+    const { images: bodyImages, slug, ...productBodyData } = req.body
+    let updateData = { ...productBodyData }
     
     // Remove slug from update data - it will be auto-generated if name changes
     delete updateData.slug
@@ -438,12 +440,14 @@ const updateProduct = async (req, res, next) => {
     
     // Handle uploaded images - CONTRACT: Only accept file uploads, reject URLs
     if (req.files && req.files.length > 0) {
+      // New files uploaded - use relative paths from getFileUrl
       const uploadedImages = req.files.map(file => getFileUrl(file.filename))
       updateData.images = uploadedImages
     }
+    // If no files uploaded, do NOT set updateData.images - this preserves existing images
     
     // Reject image URLs from request body (contract violation)
-    if (req.body.images && (!req.files || req.files.length === 0)) {
+    if (bodyImages && (!req.files || req.files.length === 0)) {
       return res.status(400).json({
         success: false,
         error: {
@@ -452,9 +456,6 @@ const updateProduct = async (req, res, next) => {
         }
       })
     }
-    
-    // Remove images from updateData if no files uploaded (preserve existing images)
-    delete updateData.images
     
     // Ensure specifications is an object if provided
     if (updateData.specifications && typeof updateData.specifications === 'string') {
