@@ -45,12 +45,20 @@ const getPageContent = async (req, res, next) => {
       Object.assign(sectionsObject, pageContent.sections)
     }
     
+    // Ensure hero object always has all fields (backend is source of truth)
+    // Return empty strings for missing fields to maintain consistency
+    const heroData = {
+      title: pageContent.hero?.title ?? '',
+      subtitle: pageContent.hero?.subtitle ?? '',
+      image: pageContent.hero?.image ?? ''
+    }
+    
     res.json({
       success: true,
       data: {
         pageContent: {
           slug: pageContent.slug,
-          hero: pageContent.hero,
+          hero: heroData,
           sections: sectionsObject
         }
       }
@@ -117,17 +125,22 @@ const updatePageContent = async (req, res, next) => {
     }
     
     // Prepare hero data
+    // Backend is source of truth: save all values, including empty strings
+    // Empty strings represent admin's intentional clearing of content
     const heroData = {
-      title: hero.title || '',
-      subtitle: hero.subtitle || '',
-      image: heroImageUrl || hero.image || ''
+      title: hero.title !== undefined && hero.title !== null ? String(hero.title) : '',
+      subtitle: hero.subtitle !== undefined && hero.subtitle !== null ? String(hero.subtitle) : '',
+      image: heroImageUrl || (hero.image !== undefined && hero.image !== null ? String(hero.image) : '')
     }
     
     // Convert sections object to Map if provided
+    // Backend is source of truth: save all values, including empty strings
+    // Empty strings represent admin's intentional clearing of content
     let sectionsMap = new Map()
     if (sections && typeof sections === 'object') {
       Object.keys(sections).forEach(key => {
-        if (sections[key] && typeof sections[key] === 'string') {
+        // Save all string values, including empty strings (backend is source of truth)
+        if (sections[key] !== undefined && sections[key] !== null && typeof sections[key] === 'string') {
           sectionsMap.set(key, sections[key])
         }
       })
