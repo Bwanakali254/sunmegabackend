@@ -96,14 +96,15 @@ app.get('/health', (req, res) => {
 })
 
 // Static file serving for uploads with CORS headers
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+  next()
+})
 app.use(
   '/uploads',
-  express.static(path.join(__dirname, 'uploads'), {
-    setHeaders: (res) => {
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-      res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL)
-    }
-  })
+  express.static(path.join(__dirname, 'uploads'))
 )
 
 // API Routes
