@@ -1,5 +1,6 @@
 const Order = require('../models/Order')
 const { submitOrder, getPaymentStatus, verifyIPN } = require('../services/pesapalService')
+const { createOrder: createPayPalOrderAPI } = require('../services/paypalService')
 const logger = require('../utils/logger')
 
 /**
@@ -313,10 +314,95 @@ const checkPaymentStatus = async (req, res, next) => {
   }
 }
 
+/**
+ * @desc    Create PayPal order for payment
+ * @route   POST /api/payments/paypal/create
+ * @access  Private
+ */
+const createPayPalOrder = async (req, res, next) => {
+  try {
+    const { orderId } = req.body
+
+    // Validate orderId is provided
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Order ID is required',
+          code: 'ORDER_ID_REQUIRED'
+        }
+      })
+    }
+
+    // Get order and validate it exists
+    const order = await Order.findOne({
+      _id: orderId,
+      userId: req.user.id
+    })
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          message: 'Order not found',
+          code: 'ORDER_NOT_FOUND'
+        }
+      })
+    }
+
+    // Validate order payment status is pending
+    if (order.paymentStatus !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: `Order payment status is ${order.paymentStatus}. Only pending orders can create PayPal payments.`,
+          code: 'INVALID_ORDER_STATUS'
+        }
+      })
+    }
+
+    // Create PayPal order using backend order data
+    // Amount MUST come from backend order total (not frontend)
+    const paypalResponse = await createPayPalOrderAPI({
+      amount: order.total, // Backend authority for amount
+      currency: 'USD', // PayPal typically uses USD, adjust if needed
+      orderId: order._id.toString(),
+      orderNumber: order.orderNumber
+    })
+
+    if (!paypalResponse.success || !paypalResponse.paypalOrderId) {
+      return res.status(500).json({
+        success: false,
+        error: {
+          message: 'Failed to create PayPal order',
+          code: 'PAYPAL_ORDER_CREATION_FAILED'
+        }
+      })
+    }
+
+    // Save PayPal order ID to order document
+    order.paypalOrderId = paypalResponse.paypalOrderId
+    order.paymentStatus = 'processing' // Update to processing while awaiting payment
+    await order.save()
+
+    // Return ONLY paypalOrderId as required
+    res.json({
+      success: true,
+      data: {
+        paypalOrderId: paypalResponse.paypalOrderId
+      }
+    })
+  } catch (error) {
+    logger.error('Create PayPal order error:', error)
+    next(error)
+  }
+}
+
 module.exports = {
   initiatePayment,
   pesapalCallback,
   pesapalIPN,
-  checkPaymentStatus
+  checkPaymentStatus,
+  createPayPalOrder
 }
 
