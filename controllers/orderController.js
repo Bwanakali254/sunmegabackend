@@ -77,7 +77,8 @@ const createOrder = async (req, res, next) => {
     const tax = 0 // Can be calculated based on location
     const total = subtotal + shipping + tax
 
-    // Create order
+    // Create order with pending payment status
+    // DO NOT reduce stock, clear cart, or send email until payment is confirmed
     const order = await Order.create({
       userId: req.user.id,
       items: orderItems,
@@ -88,37 +89,21 @@ const createOrder = async (req, res, next) => {
       shippingAddress,
       deliveryMethod,
       paymentMethod,
-      notes
+      notes,
+      paymentStatus: 'pending', // Explicitly set pending until payment confirms
+      orderStatus: 'pending' // Explicitly set pending until payment confirms
     })
 
-    // Update product stock
-    for (const item of orderItems) {
-      await Product.findByIdAndUpdate(item.productId, {
-        $inc: { stock: -item.quantity }
-      })
-    }
+    // Stock reduction, cart clearing, and confirmation email will happen
+    // ONLY after payment provider confirms success (in paymentController)
 
-    // Clear cart
-    cart.items = []
-    cart.total = 0
-    await cart.save()
-
-    // Send order confirmation email
-    try {
-      const user = await User.findById(req.user.id)
-      if (user && user.email) {
-        await sendOrderConfirmationEmail(order, user)
-      }
-    } catch (emailError) {
-      logger.error('Error sending order confirmation email:', emailError)
-      // Don't fail order creation if email fails
-    }
-
+    // Return only essential data for payment initiation
     res.status(201).json({
       success: true,
       data: {
-        order,
-        message: 'Order created successfully'
+        orderId: order._id,
+        payableAmount: order.total,
+        currency: 'KES'
       }
     })
   } catch (error) {
