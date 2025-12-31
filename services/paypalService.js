@@ -1,4 +1,5 @@
 const axios = require('axios')
+const crypto = require('crypto')
 const logger = require('../utils/logger')
 
 /**
@@ -173,8 +174,81 @@ const captureOrder = async (paypalOrderId) => {
   }
 }
 
+/**
+ * Verify PayPal webhook signature
+ * @param {Object} headers - Request headers
+ * @param {String} rawBody - Raw request body (JSON string)
+ * @param {String} webhookId - PayPal webhook ID from environment
+ * @returns {Boolean} True if signature is valid
+ */
+const verifyWebhookSignature = async (headers, rawBody, webhookId) => {
+  try {
+    const token = await getAccessToken()
+
+    // PayPal webhook verification requires the raw body as JSON object
+    let webhookEvent
+    try {
+      webhookEvent = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody
+    } catch (parseError) {
+      logger.error('Failed to parse webhook body:', parseError)
+      return false
+    }
+
+    // Extract signature headers (PayPal uses lowercase headers)
+    const authAlgo = headers['paypal-auth-algo'] || headers['Paypal-Auth-Algo']
+    const certUrl = headers['paypal-cert-url'] || headers['Paypal-Cert-Url']
+    const transmissionId = headers['paypal-transmission-id'] || headers['Paypal-Transmission-Id']
+    const transmissionSig = headers['paypal-transmission-sig'] || headers['Paypal-Transmission-Sig']
+    const transmissionTime = headers['paypal-transmission-time'] || headers['Paypal-Transmission-Time']
+
+    if (!authAlgo || !certUrl || !transmissionId || !transmissionSig || !transmissionTime) {
+      logger.warn('Missing PayPal webhook signature headers:', {
+        hasAuthAlgo: !!authAlgo,
+        hasCertUrl: !!certUrl,
+        hasTransmissionId: !!transmissionId,
+        hasTransmissionSig: !!transmissionSig,
+        hasTransmissionTime: !!transmissionTime
+      })
+      return false
+    }
+
+    // Verify webhook signature with PayPal
+    const verificationPayload = {
+      auth_algo: authAlgo,
+      cert_url: certUrl,
+      transmission_id: transmissionId,
+      transmission_sig: transmissionSig,
+      transmission_time: transmissionTime,
+      webhook_id: webhookId,
+      webhook_event: webhookEvent
+    }
+
+    const response = await axios.post(
+      `${PAYPAL_BASE_URL}/v1/notifications/verify-webhook-signature`,
+      verificationPayload,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    if (response.data && response.data.verification_status === 'SUCCESS') {
+      return true
+    }
+
+    logger.warn('PayPal webhook signature verification failed:', response.data)
+    return false
+  } catch (error) {
+    logger.error('PayPal webhook verification error:', error.response?.data || error.message)
+    return false
+  }
+}
+
 module.exports = {
   createOrder,
   captureOrder,
+  verifyWebhookSignature,
   getAccessToken
 }
