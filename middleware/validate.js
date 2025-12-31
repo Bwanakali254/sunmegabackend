@@ -343,6 +343,14 @@ const schemas = {
       })
   }),
 
+  capturePayPalPayment: Joi.object({
+    paypalOrderId: Joi.string().required()
+      .messages({
+        'string.empty': 'PayPal order ID is required',
+        'any.required': 'PayPal order ID is required'
+      })
+  }),
+
   submitContact: Joi.object({
     name: Joi.string().trim().min(1).max(100).required()
       .messages({

@@ -126,7 +126,55 @@ const createOrder = async (orderData) => {
   }
 }
 
+/**
+ * Capture PayPal payment
+ * @param {String} paypalOrderId - PayPal order ID to capture
+ * @returns {Object} Capture response with status and payment details
+ */
+const captureOrder = async (paypalOrderId) => {
+  try {
+    const token = await getAccessToken()
+
+    const response = await axios.post(
+      `${PAYPAL_BASE_URL}/v2/checkout/orders/${paypalOrderId}/capture`,
+      {},
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      }
+    )
+
+    if (response.data && response.data.id) {
+      const capture = response.data
+      const purchaseUnit = capture.purchase_units?.[0]
+      const captureDetails = purchaseUnit?.payments?.captures?.[0]
+
+      return {
+        success: true,
+        status: capture.status,
+        paypalOrderId: capture.id,
+        captureId: captureDetails?.id,
+        amount: captureDetails?.amount?.value ? parseFloat(captureDetails.amount.value) : null,
+        currency: captureDetails?.amount?.currency_code || null,
+        payerEmail: capture.payer?.email_address || null,
+        payerName: capture.payer?.name?.given_name && capture.payer?.name?.surname
+          ? `${capture.payer.name.given_name} ${capture.payer.name.surname}`
+          : null
+      }
+    }
+
+    throw new Error('Failed to capture PayPal order')
+  } catch (error) {
+    logger.error('PayPal captureOrder error:', error.response?.data || error.message)
+    throw error
+  }
+}
+
 module.exports = {
   createOrder,
+  captureOrder,
   getAccessToken
 }
