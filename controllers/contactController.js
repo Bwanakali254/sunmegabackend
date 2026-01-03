@@ -1,5 +1,5 @@
 const Contact = require('../models/Contact')
-const { sendEmail } = require('../utils/emailService')
+const { sendContactNotification } = require('../utils/emailService')
 const logger = require('../utils/logger')
 
 /**
@@ -20,21 +20,9 @@ const submitContact = async (req, res, next) => {
       message
     })
 
-    // Send notification email (optional)
+    // Send notification email (optional - failures don't break user flow)
     try {
-      await sendEmail({
-        to: process.env.EMAIL_USER || 'admin@sunmega.com',
-        subject: `New Contact Form Submission: ${subject}`,
-        html: `
-          <h2>New Contact Form Submission</h2>
-          <p><strong>Name:</strong> ${name}</p>
-          <p><strong>Email:</strong> ${email}</p>
-          ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ''}
-          <p><strong>Subject:</strong> ${subject}</p>
-          <p><strong>Message:</strong></p>
-          <p>${message.replace(/\n/g, '<br>')}</p>
-        `
-      })
+      await sendContactNotification({ name, email, phone, subject, message })
     } catch (emailError) {
       logger.error('Error sending contact notification email:', emailError)
       // Don't fail the request if email fails

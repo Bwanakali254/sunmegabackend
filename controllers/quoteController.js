@@ -1,5 +1,5 @@
 const Quote = require('../models/Quote')
-const { sendEmail } = require('../utils/emailService')
+const { sendQuoteNotification } = require('../utils/emailService')
 const logger = require('../utils/logger')
 
 /**
@@ -23,23 +23,9 @@ const submitQuote = async (req, res, next) => {
       type: type || 'consultation'
     })
 
-    // Send notification email (optional)
+    // Send notification email (optional - failures don't break user flow)
     try {
-      await sendEmail({
-        to: process.env.EMAIL_USER || 'admin@sunmega.com',
-        subject: `New Quote Request from ${location}`,
-        html: `
-          <h2>New Quote Request</h2>
-          ${name ? `<p><strong>Name:</strong> ${name}</p>` : ''}
-          ${email ? `<p><strong>Email:</strong> ${email}</p>` : ''}
-          ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ''}
-          <p><strong>Location:</strong> ${location}</p>
-          ${systemSize ? `<p><strong>System Size:</strong> ${systemSize}</p>` : ''}
-          ${installationDate ? `<p><strong>Preferred Installation Date:</strong> ${installationDate}</p>` : ''}
-          <p><strong>Contact:</strong> ${contact}</p>
-          <p><strong>Type:</strong> ${type || 'consultation'}</p>
-        `
-      })
+      await sendQuoteNotification({ name, email, phone, location, systemSize, installationDate, contact, type })
     } catch (emailError) {
       logger.error('Error sending quote notification email:', emailError)
       // Don't fail the request if email fails
