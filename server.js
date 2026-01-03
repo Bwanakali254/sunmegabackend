@@ -48,7 +48,7 @@ const allowedOrigins = process.env.CORS_ORIGINS
 
 if (allowedOrigins.length === 0) {
   logger.error('❌ CRITICAL: CORS_ORIGINS environment variable is not set')
-  logger.error('Set CORS_ORIGINS as comma-separated list: "http://localhost:5173,https://sunmega.co.ke"')
+  logger.error('Set CORS_ORIGINS as comma-separated list: "https://sunmegalimited.vercel.app,https://sunmega.co.ke"')
   process.exit(1)
 }
 
