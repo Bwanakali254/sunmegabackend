@@ -110,6 +110,18 @@ app.use(
   express.static(path.join(__dirname, 'uploads'))
 )
 
+// Static file serving for public assets (email logo, etc.)
+app.use('/assets', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+  next()
+})
+app.use(
+  '/assets',
+  express.static(path.join(__dirname, 'public', 'assets'))
+)
+
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'))
 app.use('/api/products', require('./routes/productRoutes'))

@@ -13,6 +13,8 @@ const EMAIL_ROUTING = {
 const EMAIL_FROM = process.env.EMAIL_FROM || EMAIL_ROUTING.NO_REPLY
 const WEBSITE_URL = 'https://sunmega.co.ke'
 const SUPPORT_EMAIL = 'support@sunmega.co.ke'
+const BRAND_NAME = 'Sun Mega Limited'
+const EMAIL_LOGO_URL = process.env.EMAIL_LOGO_URL || ''
 
 /**
  * Generate plain text version from HTML
@@ -68,10 +70,13 @@ const createEmailTemplate = ({ title, content, complianceText }) => {
           <tr>
             <td style="background-color: #16a34a; padding: 30px 40px; text-align: center;">
               <a href="${WEBSITE_URL}" style="text-decoration: none; display: inline-block;">
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center">
                   <tr>
-                    <td style="color: #ffffff; font-size: 28px; font-weight: bold; letter-spacing: -0.5px;">
-                      ☀️ SunMega Limited
+                    <td align="center" style="vertical-align: middle;">
+                      ${EMAIL_LOGO_URL ? `<img src="${EMAIL_LOGO_URL}" alt="${BRAND_NAME}" style="max-width: 60px; height: auto; vertical-align: middle; margin-right: 12px; display: inline-block;" />` : ''}
+                      <span style="color: #ffffff; font-size: 28px; font-weight: bold; letter-spacing: -0.5px; vertical-align: middle; display: inline-block;">
+                        ${BRAND_NAME}
+                      </span>
                     </td>
                   </tr>
                 </table>
@@ -101,7 +106,7 @@ const createEmailTemplate = ({ title, content, complianceText }) => {
                 <tr>
                   <td style="text-align: center;">
                     <p style="margin: 0 0 16px 0; font-size: 14px; color: #6b7280; line-height: 1.5;">
-                      <strong style="color: #111827;">SunMega Limited</strong><br>
+                      <strong style="color: #111827;">${BRAND_NAME}</strong><br>
                       <a href="${WEBSITE_URL}" style="color: #16a34a; text-decoration: none;">${WEBSITE_URL}</a><br>
                       <a href="mailto:${SUPPORT_EMAIL}" style="color: #16a34a; text-decoration: none;">${SUPPORT_EMAIL}</a>
                     </p>
@@ -113,7 +118,7 @@ const createEmailTemplate = ({ title, content, complianceText }) => {
                     ` : ''}
                     
                     <p style="margin: 0; font-size: 12px; color: #9ca3af; line-height: 1.5;">
-                      © ${currentYear} SunMega Limited. All rights reserved.
+                      © ${currentYear} ${BRAND_NAME}. All rights reserved.
                     </p>
                   </td>
                 </tr>
@@ -261,7 +266,7 @@ const sendNewsletterEmail = async (newsletterData) => {
   }
 
   const recipient = to || EMAIL_ROUTING.NEWS
-  const emailSubject = subject || 'Newsletter from SunMega Limited'
+  const emailSubject = subject || `Newsletter from ${BRAND_NAME}`
   const emailContent = html || '<p>Thank you for subscribing to our newsletter.</p>'
 
   const fullHtml = createEmailTemplate({
@@ -314,7 +319,7 @@ const sendVerificationEmail = async (user, token) => {
   const content = `
     <p style="margin: 0 0 24px 0;">Hello ${user.firstName},</p>
     
-    <p style="margin: 0 0 24px 0;">Thank you for registering with SunMega Limited. Please verify your email address by clicking the button below:</p>
+    <p style="margin: 0 0 24px 0;">Thank you for registering with ${BRAND_NAME}. Please verify your email address by clicking the button below:</p>
     
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
       <tr>
@@ -333,13 +338,13 @@ const sendVerificationEmail = async (user, token) => {
   const html = createEmailTemplate({
     title: 'Verify Your Email Address',
     content,
-    complianceText: 'You are receiving this email because you created an account on SunMega Limited. If you did not create an account, please ignore this email.'
+    complianceText: `You are receiving this email because you created an account on ${BRAND_NAME}. If you did not create an account, please ignore this email.`
   })
 
   return _sendEmail({
     to: user.email,
     from: EMAIL_FROM,
-    subject: 'Verify Your Email - SunMega Limited',
+    subject: `Verify Your Email - ${BRAND_NAME}`,
     html
   })
 }
@@ -382,13 +387,13 @@ const sendPasswordResetEmail = async (user, token) => {
   const html = createEmailTemplate({
     title: 'Reset Your Password',
     content,
-    complianceText: 'You are receiving this email because you requested a password reset for your SunMega Limited account. If you did not request this, please ignore this email.'
+    complianceText: `You are receiving this email because you requested a password reset for your ${BRAND_NAME} account. If you did not request this, please ignore this email.`
   })
 
   return _sendEmail({
     to: user.email,
     from: EMAIL_FROM,
-    subject: 'Reset Your Password - SunMega Limited',
+    subject: `Reset Your Password - ${BRAND_NAME}`,
     html
   })
 }
@@ -488,13 +493,13 @@ const sendOrderConfirmationEmail = async (order, user) => {
   const html = createEmailTemplate({
     title: `Order Confirmation #${order.orderNumber}`,
     content,
-    complianceText: 'You are receiving this email because you placed an order on SunMega Limited. This is an automated confirmation email.'
+    complianceText: `You are receiving this email because you placed an order on ${BRAND_NAME}. This is an automated confirmation email.`
   })
 
   return _sendEmail({
     to: user.email,
     from: EMAIL_FROM,
-    subject: `Order Confirmation #${order.orderNumber} - SunMega Limited`,
+    subject: `Order Confirmation #${order.orderNumber} - ${BRAND_NAME}`,
     html
   })
 }
