@@ -127,10 +127,6 @@ const orderSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  paypalOrderId: {
-    type: String,
-    trim: true
-  },
   notes: {
     type: String,
     trim: true,

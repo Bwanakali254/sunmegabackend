@@ -1,5 +1,4 @@
 const express = require('express')
-const mongoose = require('mongoose')
 const cors = require('cors')
 const helmet = require('helmet')
 const morgan = require('morgan')
@@ -69,9 +68,6 @@ app.use(
 )
 
 // Body Parser Middleware
-// Webhook routes need raw body for signature verification
-// Use express.raw() for webhooks, express.json() for other routes
-app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '10mb' }))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(cookieParser())
@@ -128,7 +124,6 @@ app.use('/api/products', require('./routes/productRoutes'))
 app.use('/api/cart', require('./routes/cartRoutes'))
 app.use('/api/orders', require('./routes/orderRoutes'))
 app.use('/api/payments', require('./routes/paymentRoutes'))
-app.use('/api/webhooks', require('./routes/webhookRoutes'))
 app.use('/api/contact', require('./routes/contactRoutes'))
 app.use('/api/quotes', require('./routes/quoteRoutes'))
 app.use('/api/newsletter', require('./routes/newsletterRoutes'))
