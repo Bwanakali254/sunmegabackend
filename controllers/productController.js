@@ -324,7 +324,29 @@ const createProduct = async (req, res, next) => {
     let images = []
     
     if (req.files && req.files.length > 0) {
-      images = req.files.map(file => getFileUrl(file.filename))
+      const { verifyFileExists } = require('../middleware/upload')
+      
+      // Verify all uploaded files exist on disk (detects ephemeral filesystem issues)
+      const verifiedFiles = req.files.filter(file => {
+        const exists = verifyFileExists(file.filename)
+        if (!exists) {
+          logger.error(`Uploaded file not found on disk: ${file.filename} - Upload may have failed`)
+        }
+        return exists
+      })
+      
+      if (verifiedFiles.length === 0) {
+        return res.status(500).json({
+          success: false,
+          error: {
+            message: 'File upload failed - files not persisted. Check server storage configuration.',
+            code: 'UPLOAD_PERSISTENCE_ERROR'
+          }
+        })
+      }
+      
+      // Generate stable relative paths for database storage
+      images = verifiedFiles.map(file => getFileUrl(file.filename))
     }
     
     // Reject image URLs from request body (contract violation)
@@ -440,8 +462,37 @@ const updateProduct = async (req, res, next) => {
     
     // Handle uploaded images - CONTRACT: Only accept file uploads, reject URLs
     if (req.files && req.files.length > 0) {
+      const { verifyFileExists, deleteFile } = require('../middleware/upload')
+      
+      // Verify all uploaded files exist on disk
+      const verifiedFiles = req.files.filter(file => {
+        const exists = verifyFileExists(file.filename)
+        if (!exists) {
+          logger.error(`Uploaded file not found on disk: ${file.filename} - Upload may have failed`)
+        }
+        return exists
+      })
+      
+      if (verifiedFiles.length === 0) {
+        return res.status(500).json({
+          success: false,
+          error: {
+            message: 'File upload failed - files not persisted. Check server storage configuration.',
+            code: 'UPLOAD_PERSISTENCE_ERROR'
+          }
+        })
+      }
+      
+      // Clean up old images (delete from disk)
+      // Only delete if new images are successfully uploaded
+      if (existingProduct.images && existingProduct.images.length > 0) {
+        existingProduct.images.forEach(oldImagePath => {
+          deleteFile(oldImagePath)
+        })
+      }
+      
       // New files uploaded - use relative paths from getFileUrl
-      const uploadedImages = req.files.map(file => getFileUrl(file.filename))
+      const uploadedImages = verifiedFiles.map(file => getFileUrl(file.filename))
       updateData.images = uploadedImages
     }
     // If no files uploaded, do NOT set updateData.images - this preserves existing images
@@ -515,6 +566,14 @@ const deleteProduct = async (req, res, next) => {
           message: 'Product not found',
           code: 'PRODUCT_NOT_FOUND'
         }
+      })
+    }
+
+    // Delete associated image files from disk before deleting product
+    const { deleteFile } = require('../middleware/upload')
+    if (product.images && product.images.length > 0) {
+      product.images.forEach(imagePath => {
+        deleteFile(imagePath)
       })
     }
 

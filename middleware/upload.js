@@ -9,6 +9,21 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true })
 }
 
+/**
+ * STORAGE PERSISTENCE NOTE:
+ * 
+ * Images are stored in backend/uploads/ directory.
+ * 
+ * DEPLOYMENT REQUIREMENT: This directory MUST be persistent across server restarts.
+ * 
+ * For Render deployments:
+ * - Default filesystem is EPHEMERAL (files lost on restart)
+ * - SOLUTION: Configure a Render Disk Volume and mount it to backend/uploads/
+ * - OR: Use cloud storage (S3/Cloudinary) - requires additional implementation
+ * 
+ * File existence is verified after upload to detect persistence issues.
+ */
+
 // Configure storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -90,9 +105,54 @@ const getFileUrl = (filename) => {
   return `/uploads/${filename}`
 }
 
+/**
+ * Verify file exists on disk after upload
+ * This helps detect if filesystem is ephemeral (files lost on restart)
+ * @param {string} filename - Filename to verify
+ * @returns {boolean} - True if file exists
+ */
+const verifyFileExists = (filename) => {
+  if (!filename) return false
+  const filePath = path.join(uploadsDir, filename)
+  const exists = fs.existsSync(filePath)
+  if (!exists) {
+    logger.warn(`Uploaded file not found on disk: ${filename} - Possible ephemeral filesystem issue`)
+  }
+  return exists
+}
+
+/**
+ * Delete file from disk
+ * Used when updating products to clean up old images
+ * @param {string} filename - Filename to delete (without /uploads/ prefix)
+ * @returns {boolean} - True if file was deleted or didn't exist
+ */
+const deleteFile = (filename) => {
+  if (!filename) return true
+  try {
+    // Remove /uploads/ prefix if present (defensive)
+    const cleanFilename = filename.replace(/^\/uploads\//, '')
+    const filePath = path.join(uploadsDir, cleanFilename)
+    
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath)
+      logger.info(`Deleted image file: ${cleanFilename}`)
+      return true
+    }
+    // File doesn't exist (may have been deleted already or on ephemeral filesystem)
+    return true
+  } catch (error) {
+    logger.error(`Error deleting file ${filename}:`, error)
+    // Don't throw - file deletion failure shouldn't break product updates
+    return false
+  }
+}
+
 module.exports = {
   uploadSingle,
   uploadMultiple,
-  getFileUrl
+  getFileUrl,
+  verifyFileExists,
+  deleteFile
 }
 

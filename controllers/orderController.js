@@ -97,11 +97,12 @@ const createOrder = async (req, res, next) => {
     // Stock reduction, cart clearing, and confirmation email will happen
     // ONLY after payment provider confirms success (in paymentController)
 
-    // Return only essential data for payment initiation
+    // Return full order object (backend is authority for order data)
+    // Frontend must consume backend contract, not guess structure
     res.status(201).json({
       success: true,
       data: {
-        orderId: order._id,
+        order: order, // Full order document - backend is authority
         payableAmount: order.total,
         currency: 'KES'
       }
