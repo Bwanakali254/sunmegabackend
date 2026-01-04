@@ -1,9 +1,6 @@
 const Order = require('../models/Order')
 const Cart = require('../models/Cart')
 const Product = require('../models/Product')
-const User = require('../models/User')
-const { sendOrderConfirmationEmail } = require('../utils/emailService')
-const logger = require('../utils/logger')
 
 /**
  * @desc    Create order from cart
@@ -19,7 +16,7 @@ const createOrder = async (req, res, next) => {
       notes
     } = req.body
 
-    // Get user's cart
+    // Re-fetch user's cart immediately before validation
     const cart = await Cart.findOne({ userId: req.user.id })
       .populate('items.productId')
 
@@ -33,7 +30,6 @@ const createOrder = async (req, res, next) => {
       })
     }
 
-    // Validate all products are still available
     const orderItems = []
     let subtotal = 0
 
@@ -60,25 +56,24 @@ const createOrder = async (req, res, next) => {
         })
       }
 
-      const itemTotal = cartItem.price * cartItem.quantity
+      // ✅ Backend-authoritative pricing
+      const itemPrice = product.price
+      const itemTotal = itemPrice * cartItem.quantity
       subtotal += itemTotal
 
       orderItems.push({
         productId: product._id,
         name: product.name,
         quantity: cartItem.quantity,
-        price: cartItem.price,
+        price: itemPrice,
         total: itemTotal
       })
     }
 
-    // Calculate shipping
     const shipping = deliveryMethod === 'pickup' ? 0 : 50
-    const tax = 0 // Can be calculated based on location
+    const tax = 0
     const total = subtotal + shipping + tax
 
-    // Create order with pending payment status
-    // DO NOT reduce stock, clear cart, or send email until payment is confirmed
     const order = await Order.create({
       userId: req.user.id,
       items: orderItems,
@@ -90,19 +85,14 @@ const createOrder = async (req, res, next) => {
       deliveryMethod,
       paymentMethod,
       notes,
-      paymentStatus: 'pending', // Explicitly set pending until payment confirms
-      orderStatus: 'pending' // Explicitly set pending until payment confirms
+      paymentStatus: 'pending',
+      orderStatus: 'pending'
     })
 
-    // Stock reduction, cart clearing, and confirmation email will happen
-    // ONLY after payment provider confirms success (in paymentController)
-
-    // Return full order object (backend is authority for order data)
-    // Frontend must consume backend contract, not guess structure
     res.status(201).json({
       success: true,
       data: {
-        order: order, // Full order document - backend is authority
+        order,
         payableAmount: order.total,
         currency: 'KES'
       }
