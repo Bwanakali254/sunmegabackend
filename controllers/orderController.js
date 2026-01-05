@@ -1,6 +1,7 @@
 const Order = require('../models/Order')
 const Cart = require('../models/Cart')
 const Product = require('../models/Product')
+const logger = require('../utils/logger')
 
 /**
  * @desc    Create order from cart
@@ -9,6 +10,23 @@ const Product = require('../models/Product')
  */
 const createOrder = async (req, res, next) => {
   try {
+    /**
+     * ORDER VALIDATION: Strict validation ensures data integrity
+     * 
+     * Validation middleware runs before this controller, but we add defensive checks
+     * to ensure no silent failures and provide clear error messages.
+     * 
+     * Required fields (validated by Joi schema):
+     * - shippingAddress: { name, phone, email, street, city } (required)
+     * - paymentMethod: 'pesapal' | 'mpesa' | 'card' | 'cash' (required)
+     * 
+     * Optional fields:
+     * - deliveryMethod: 'home' | 'pickup' (default: 'home')
+     * - notes: string (max 1000 chars)
+     * - shippingAddress.state: string (optional)
+     * - shippingAddress.zipCode: string (optional)
+     * - shippingAddress.country: string (default: 'Kenya')
+     */
     const {
       shippingAddress,
       deliveryMethod = 'home',
@@ -16,7 +34,77 @@ const createOrder = async (req, res, next) => {
       notes
     } = req.body
 
+    // DEFENSIVE VALIDATION: Ensure shippingAddress exists (should be caught by Joi, but fail fast if not)
+    if (!shippingAddress || typeof shippingAddress !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Shipping address is required',
+          code: 'SHIPPING_ADDRESS_REQUIRED',
+          field: 'shippingAddress'
+        }
+      })
+    }
+
+    // DEFENSIVE VALIDATION: Ensure required shippingAddress fields exist
+    const requiredFields = ['name', 'phone', 'email', 'street', 'city']
+    const missingFields = requiredFields.filter(field => !shippingAddress[field] || (typeof shippingAddress[field] === 'string' && !shippingAddress[field].trim()))
+    
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: `Missing required shipping address fields: ${missingFields.join(', ')}`,
+          code: 'SHIPPING_ADDRESS_INCOMPLETE',
+          fields: missingFields
+        }
+      })
+    }
+
+    // DEFENSIVE VALIDATION: Ensure paymentMethod exists
+    if (!paymentMethod) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Payment method is required',
+          code: 'PAYMENT_METHOD_REQUIRED',
+          field: 'paymentMethod'
+        }
+      })
+    }
+
+    // DEFENSIVE VALIDATION: Ensure paymentMethod is valid enum value
+    const validPaymentMethods = ['pesapal', 'mpesa', 'card', 'cash']
+    if (!validPaymentMethods.includes(paymentMethod)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: `Invalid payment method. Must be one of: ${validPaymentMethods.join(', ')}`,
+          code: 'INVALID_PAYMENT_METHOD',
+          field: 'paymentMethod',
+          received: paymentMethod,
+          valid: validPaymentMethods
+        }
+      })
+    }
+
+    // DEFENSIVE VALIDATION: Ensure deliveryMethod is valid enum value
+    const validDeliveryMethods = ['home', 'pickup']
+    if (!validDeliveryMethods.includes(deliveryMethod)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: `Invalid delivery method. Must be one of: ${validDeliveryMethods.join(', ')}`,
+          code: 'INVALID_DELIVERY_METHOD',
+          field: 'deliveryMethod',
+          received: deliveryMethod,
+          valid: validDeliveryMethods
+        }
+      })
+    }
+
     // Re-fetch user's cart immediately before validation
+    // CART INTEGRITY: Populate products to validate they still exist
     const cart = await Cart.findOne({ userId: req.user.id })
       .populate('items.productId')
 
@@ -30,10 +118,55 @@ const createOrder = async (req, res, next) => {
       })
     }
 
+    /**
+     * CART INTEGRITY: Filter out invalid items before order creation
+     * 
+     * Prevents order creation failures due to:
+     * - Deleted products (productId is null)
+     * - Inactive products (product.active is false)
+     * 
+     * If cart becomes empty after filtering, return error
+     */
+    const validCartItems = cart.items.filter(item => {
+      if (!item.productId) {
+        logger.warn(`Order creation blocked: Cart item ${item._id} has null productId (product deleted)`)
+        return false
+      }
+      if (item.productId.active === false) {
+        logger.warn(`Order creation blocked: Cart item ${item._id} references inactive product ${item.productId._id}`)
+        return false
+      }
+      return true
+    })
+
+    // If all items are invalid, return error (cart corruption detected)
+    if (validCartItems.length === 0) {
+      // Sanitize cart by removing invalid items
+      cart.items = []
+      await cart.save()
+      
+      return res.status(400).json({
+        success: false,
+        error: {
+          message: 'Cart contains only unavailable products. Please add valid products to your cart.',
+          code: 'CART_CORRUPTED'
+        }
+      })
+    }
+
+    // If some items are invalid, sanitize cart but continue with valid items
+    if (validCartItems.length < cart.items.length) {
+      const removedCount = cart.items.length - validCartItems.length
+      logger.warn(`Order creation: Removed ${removedCount} invalid item(s) from cart. Continuing with ${validCartItems.length} valid item(s).`)
+      cart.items = validCartItems
+      await cart.save()
+    }
+
     const orderItems = []
     let subtotal = 0
 
-    for (const cartItem of cart.items) {
+    // Use sanitized cart items (already validated above)
+    for (const cartItem of validCartItems) {
       const product = cartItem.productId
 
       if (!product || !product.active) {

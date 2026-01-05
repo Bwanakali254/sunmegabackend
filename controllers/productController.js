@@ -464,11 +464,11 @@ const updateProduct = async (req, res, next) => {
     if (req.files && req.files.length > 0) {
       const { verifyFileExists, deleteFile } = require('../middleware/upload')
       
-      // Verify all uploaded files exist on disk
+      // Verify all uploaded files exist (Cloudinary or disk)
       const verifiedFiles = req.files.filter(file => {
-        const exists = verifyFileExists(file.filename)
+        const exists = verifyFileExists(file.filename || file.cloudinaryUrl)
         if (!exists) {
-          logger.error(`Uploaded file not found on disk: ${file.filename} - Upload may have failed`)
+          logger.error(`Uploaded file not found: ${file.filename || file.cloudinaryUrl} - Upload may have failed`)
         }
         return exists
       })
@@ -483,16 +483,18 @@ const updateProduct = async (req, res, next) => {
         })
       }
       
-      // Clean up old images (delete from disk)
+      // Clean up old images (delete from Cloudinary or disk)
       // Only delete if new images are successfully uploaded
       if (existingProduct.images && existingProduct.images.length > 0) {
-        existingProduct.images.forEach(oldImagePath => {
-          deleteFile(oldImagePath)
-        })
+        await Promise.all(
+          existingProduct.images.map(oldImagePath => deleteFile(oldImagePath))
+        )
       }
       
-      // New files uploaded - use relative paths from getFileUrl
-      const uploadedImages = verifiedFiles.map(file => getFileUrl(file.filename))
+      // New files uploaded - use Cloudinary URLs or relative paths from getFileUrl
+      const uploadedImages = verifiedFiles.map(file => {
+        return getFileUrl(file.cloudinaryUrl || file.filename)
+      })
       updateData.images = uploadedImages
     }
     // If no files uploaded, do NOT set updateData.images - this preserves existing images
@@ -569,12 +571,12 @@ const deleteProduct = async (req, res, next) => {
       })
     }
 
-    // Delete associated image files from disk before deleting product
+    // Delete associated image files (Cloudinary or disk) before deleting product
     const { deleteFile } = require('../middleware/upload')
     if (product.images && product.images.length > 0) {
-      product.images.forEach(imagePath => {
-        deleteFile(imagePath)
-      })
+      await Promise.all(
+        product.images.map(imagePath => deleteFile(imagePath))
+      )
     }
 
     // Actually delete the product from database

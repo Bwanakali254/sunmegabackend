@@ -16,13 +16,38 @@ const getCart = async (req, res, next) => {
       cart = await Cart.create({ userId: req.user.id, items: [] })
     }
 
-    // Filter out inactive products and calculate totals
+    /**
+     * CART INTEGRITY: Filter out invalid cart items
+     * 
+     * Removes items where:
+     * 1. productId is null (product was deleted from database)
+     * 2. productId.active is false (product was deactivated)
+     * 
+     * This prevents:
+     * - Order creation failures due to null product references
+     * - Frontend errors when rendering cart items
+     * - Cart corruption from deleted products
+     */
     const validItems = cart.items.filter(item => {
-      return item.productId && item.productId.active !== false
+      // CRITICAL: Check if productId exists (not null) - handles deleted products
+      if (!item.productId) {
+        logger.warn(`Cart item ${item._id} has null productId - product was deleted. Removing from cart.`)
+        return false
+      }
+      
+      // Check if product is active - handles deactivated products
+      if (item.productId.active === false) {
+        logger.info(`Cart item ${item._id} references inactive product ${item.productId._id}. Removing from cart.`)
+        return false
+      }
+      
+      return true
     })
 
-    // Update cart if items were filtered
+    // Update cart if items were filtered (sanitize cart integrity)
     if (validItems.length !== cart.items.length) {
+      const removedCount = cart.items.length - validItems.length
+      logger.info(`Cart sanitized: Removed ${removedCount} invalid item(s) from cart for user ${req.user.id}`)
       cart.items = validItems
       await cart.save()
     }

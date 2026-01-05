@@ -150,10 +150,10 @@ const pesapalCallback = async (req, res, _next) => {
 
       try {
         // 1. Update order status (within transaction)
-        order.paymentStatus = 'paid'
-        if (order.orderStatus === 'pending') {
-          order.orderStatus = 'confirmed'
-        }
+      order.paymentStatus = 'paid'
+      if (order.orderStatus === 'pending') {
+        order.orderStatus = 'confirmed'
+      }
         order.paymentId = OrderTrackingId
         await order.save({ session })
 
@@ -195,13 +195,13 @@ const pesapalCallback = async (req, res, _next) => {
 
       // 4. Send order confirmation email (outside transaction - non-critical)
       try {
-        const user = await User.findById(order.userId)
-        if (user && user.email) {
-          await sendOrderConfirmationEmail(order, user)
-        }
-      } catch (emailError) {
+          const user = await User.findById(order.userId)
+          if (user && user.email) {
+            await sendOrderConfirmationEmail(order, user)
+          }
+        } catch (emailError) {
         // Email failure should not fail the payment
-        logger.error('Error sending order confirmation email:', emailError)
+          logger.error('Error sending order confirmation email:', emailError)
       }
     } else if (statusUpper === 'FAILED') {
       order.paymentStatus = 'failed'
@@ -300,10 +300,10 @@ const pesapalIPN = async (req, res, next) => {
 
       try {
         // 1. Update order status (within transaction)
-        order.paymentStatus = 'paid'
-        if (order.orderStatus === 'pending') {
-          order.orderStatus = 'confirmed'
-        }
+      order.paymentStatus = 'paid'
+      if (order.orderStatus === 'pending') {
+        order.orderStatus = 'confirmed'
+      }
         order.paymentId = OrderTrackingId
         await order.save({ session })
 
@@ -345,13 +345,13 @@ const pesapalIPN = async (req, res, next) => {
 
       // 4. Send order confirmation email (outside transaction - non-critical)
       try {
-        const user = await User.findById(order.userId)
-        if (user && user.email) {
-          await sendOrderConfirmationEmail(order, user)
-        }
-      } catch (emailError) {
+          const user = await User.findById(order.userId)
+          if (user && user.email) {
+            await sendOrderConfirmationEmail(order, user)
+          }
+        } catch (emailError) {
         // Email failure should not fail the payment
-        logger.error('Error sending order confirmation email:', emailError)
+          logger.error('Error sending order confirmation email:', emailError)
       }
     } else if (statusUpper === 'FAILED') {
       order.paymentStatus = 'failed'
@@ -359,8 +359,8 @@ const pesapalIPN = async (req, res, next) => {
       await order.save()
     } else {
       // Other statuses (e.g., PENDING) - just update tracking ID
-      order.paymentId = OrderTrackingId
-      await order.save()
+    order.paymentId = OrderTrackingId
+    await order.save()
     }
 
     logger.info('Order payment status updated:', {

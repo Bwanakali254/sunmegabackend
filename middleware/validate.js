@@ -299,23 +299,78 @@ const schemas = {
 
   createOrder: Joi.object({
     shippingAddress: Joi.object({
-      name: Joi.string().trim().required(),
-      phone: Joi.string().trim().required(),
-      email: Joi.string().email().lowercase().trim().required(),
-      street: Joi.string().trim().required(),
-      city: Joi.string().trim().required(),
-      state: Joi.string().trim(),
-      zipCode: Joi.string().trim(),
-      country: Joi.string().trim().default('Kenya')
-    }).required(),
-    deliveryMethod: Joi.string().valid('home', 'pickup').default('home'),
+      name: Joi.string().trim().min(1).max(100).required()
+        .messages({
+          'string.empty': 'Name is required',
+          'string.min': 'Name must be at least 1 character',
+          'string.max': 'Name cannot exceed 100 characters',
+          'any.required': 'Name is required'
+        }),
+      phone: Joi.string().trim().min(7).max(20).required()
+        .pattern(/^[\d\s\-\+\(\)]+$/)
+        .messages({
+          'string.empty': 'Phone number is required',
+          'string.min': 'Phone number must be at least 7 digits',
+          'string.max': 'Phone number cannot exceed 20 characters',
+          'string.pattern.base': 'Phone number contains invalid characters. Use digits, spaces, hyphens, plus, or parentheses only.',
+          'any.required': 'Phone number is required'
+        }),
+      email: Joi.string().email().lowercase().trim().max(255).required()
+        .messages({
+          'string.email': 'Please provide a valid email address',
+          'string.empty': 'Email is required',
+          'string.max': 'Email cannot exceed 255 characters',
+          'any.required': 'Email is required'
+        }),
+      street: Joi.string().trim().min(1).max(200).required()
+        .messages({
+          'string.empty': 'Street address is required',
+          'string.min': 'Street address must be at least 1 character',
+          'string.max': 'Street address cannot exceed 200 characters',
+          'any.required': 'Street address is required'
+        }),
+      city: Joi.string().trim().min(1).max(100).required()
+        .messages({
+          'string.empty': 'City is required',
+          'string.min': 'City must be at least 1 character',
+          'string.max': 'City cannot exceed 100 characters',
+          'any.required': 'City is required'
+        }),
+      state: Joi.string().trim().max(100).allow('', null)
+        .messages({
+          'string.max': 'State cannot exceed 100 characters'
+        }),
+      zipCode: Joi.string().trim().max(20).allow('', null)
+        .messages({
+          'string.max': 'Zip code cannot exceed 20 characters'
+        }),
+      country: Joi.string().trim().max(100).default('Kenya')
+        .messages({
+          'string.max': 'Country cannot exceed 100 characters'
+        })
+    }).required()
+      .messages({
+        'object.base': 'Shipping address is required',
+        'any.required': 'Shipping address is required'
+      }),
+    deliveryMethod: Joi.string().valid('home', 'pickup').default('home')
+      .messages({
+        'any.only': 'Delivery method must be either "home" or "pickup"'
+      }),
     paymentMethod: Joi.string().valid('pesapal', 'mpesa', 'card', 'cash').required()
       .messages({
-        'any.only': 'Invalid payment method',
-        'any.required': 'Payment method is required'
+        'any.only': 'Payment method must be one of: pesapal, mpesa, card, cash',
+        'any.required': 'Payment method is required',
+        'string.empty': 'Payment method is required'
       }),
-    notes: Joi.string().trim().max(1000)
-  }),
+    notes: Joi.string().trim().max(1000).allow('', null)
+      .messages({
+        'string.max': 'Notes cannot exceed 1000 characters'
+      })
+  }).strict() // Reject unknown fields
+    .messages({
+      'object.unknown': 'Unknown field: {{#label}}'
+    }),
 
   updateOrderStatus: Joi.object({
     orderStatus: Joi.string().valid('pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'),
@@ -364,24 +419,73 @@ const schemas = {
   }),
 
   submitQuote: Joi.object({
-    name: Joi.string().trim().max(100),
-    email: Joi.string().email().lowercase().trim(),
-    phone: Joi.string().trim().max(20),
+    name: Joi.string().trim().max(100).allow('', null)
+      .messages({
+        'string.max': 'Name cannot exceed 100 characters'
+      }),
+    email: Joi.string().email().lowercase().trim().max(255).allow('', null)
+      .messages({
+        'string.email': 'Please provide a valid email address',
+        'string.max': 'Email cannot exceed 255 characters'
+      }),
+    phone: Joi.string().trim().max(20).allow('', null)
+      .pattern(/^[\d\s+\-()]+$/)
+      .messages({
+        'string.max': 'Phone number cannot exceed 20 characters',
+        'string.pattern.base': 'Phone number contains invalid characters'
+      }),
     location: Joi.string().trim().min(1).max(200).required()
       .messages({
         'string.empty': 'Location is required',
+        'string.min': 'Location must be at least 1 character',
         'string.max': 'Location cannot exceed 200 characters',
         'any.required': 'Location is required'
       }),
-    systemSize: Joi.string().trim().max(100),
-    installationDate: Joi.string().trim().max(50),
-    contact: Joi.string().trim().min(1).required()
+    systemSize: Joi.string().trim().max(100).allow('', null)
       .messages({
-        'string.empty': 'Contact information (email or phone) is required',
-        'any.required': 'Contact information is required'
+        'string.max': 'System size cannot exceed 100 characters'
       }),
-    type: Joi.string().valid('residential', 'commercial', 'industrial', 'consultation')
-  }),
+    installationDate: Joi.string().trim().max(50).allow('', null)
+      .messages({
+        'string.max': 'Installation date cannot exceed 50 characters'
+      }),
+    // BACKWARD COMPATIBILITY: contact field is optional if email/phone provided
+    contact: Joi.string().trim().min(1).allow('', null)
+      .messages({
+        'string.min': 'Contact information must be at least 1 character'
+      }),
+    type: Joi.string().valid('residential', 'commercial', 'industrial', 'consultation').default('consultation')
+      .messages({
+        'any.only': 'Type must be one of: residential, commercial, industrial, consultation'
+      })
+  }).custom((value, helpers) => {
+    /**
+     * CUSTOM VALIDATION: Ensure at least one contact method is provided
+     * 
+     * Valid combinations:
+     * - email (required if no phone/contact)
+     * - phone (required if no email/contact)
+     * - contact (required if no email/phone)
+     * 
+     * At least one of email, phone, or contact must be provided and non-empty
+     */
+    const { email, phone, contact } = value
+    
+    const hasEmail = email && email.trim().length > 0
+    const hasPhone = phone && phone.trim().length > 0
+    const hasContact = contact && contact.trim().length > 0
+    
+    if (!hasEmail && !hasPhone && !hasContact) {
+      return helpers.error('any.custom', {
+        message: 'At least one contact method is required: email, phone, or contact'
+      })
+    }
+    
+    return value
+  }, 'Contact method validation')
+    .messages({
+      'any.custom': 'At least one contact method is required: email, phone, or contact'
+    }),
 
   subscribeNewsletter: Joi.object({
     email: Joi.string().email().lowercase().trim().required()
