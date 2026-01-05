@@ -36,6 +36,7 @@
     "joi": "^17.11.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.3",
+    "redis": "^4.6.12",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
     "cloudinary": "^1.41.0",
@@ -43,7 +44,8 @@
     "passport": "^0.7.0",
     "passport-facebook": "^3.0.0",
     "passport-google-oauth20": "^2.0.0",
-    "resend": "^6.6.0"
+    "resend": "^6.6.0",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "eslint": "^8.55.0",
